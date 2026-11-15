@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions, ideas and builds
+    url: https://github.com/Stink-O/model2mc/discussions
+    about: Ask how something works, suggest a feature, or show what you made. Bugs go in an issue.
