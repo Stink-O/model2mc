@@ -35,7 +35,24 @@ model2mc builds. The schematic and structure files also work in regular Minecraf
 > `--no-promo` turns off; nothing is added to your files, and the tool makes no network requests. See
 > [Made with Tripo](#made-with-tripo).
 
-**Contents:** [Features](#features) ·
+## Made for agents
+
+model2mc is meant to be run by a coding agent (Claude Code, Codex, Cursor and the like) as well as by hand. It's one
+command with no prompts and no network access. Progress goes to stderr, and a failure exits non-zero with a
+`model2mc: ...` message saying what went wrong. The agent can also open the `--preview` PNG to check the result.
+
+Paste this into your agent, with your own model and height:
+
+```text
+Clone https://github.com/Stink-O/model2mc and install it in a virtual environment (pip install -e .).
+Convert my-model.glb to a Minecraft build 80 blocks tall with:
+model2mc my-model.glb --height 80 --out my-model.schem --preview check.png
+Open check.png and look at it. If the build is lying down, add --up z. If it faces the wrong way, add --yaw 90.
+Run it again until it looks right, then tell me where the .schem is.
+```
+
+**Contents:** [Made for agents](#made-for-agents) ·
+[Features](#features) ·
 [Getting started](#getting-started) ·
 [Use](#use) ·
 [Options](#options) ·
