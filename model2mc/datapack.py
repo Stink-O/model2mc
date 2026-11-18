@@ -2,17 +2,20 @@
 
 In game:
 
-    /function model2mc:place_NAME   puts the build on the ground ahead of you (height / 3 + 15 blocks away)
-    /function model2mc:undo         takes the nearest placed build away and restores the area as it was
+    /function model2mc:NAME   puts the build on the ground ahead of you (height / 3 + 15 blocks away)
+    /function model2mc:undo   takes the nearest placed build away and restores the area as it was
+
+Only those two kinds of function are in the model2mc namespace, so `/function model2mc:` lists nothing else; every
+internal step, tag, structure and the vault dimension live in model2mc_internal.
 
 Before placing, the area (one block wider all round, and one below, so things that hang on a neighbour survive) is
-copied into a void dimension, model2mc:vault, at the same coordinates; undo copies it back, chests and all. Java only
+copied into a void dimension, model2mc_internal:vault, at the same coordinates; undo copies it back, chests and all. Java only
 loads a new dimension when a world opens, so after adding the pack the world has to be reopened once; until then the
 functions say so instead of running.
 
 Several packs made by model2mc can be installed together: the shared files (the vault dimension, undo, the load and
 check functions) are identical in each, and every model joins the undo through the function tags
-#model2mc:undo_start and #model2mc:undo_finish.
+#model2mc_internal:undo_start and #model2mc_internal:undo_finish.
 
 The commands come from a pack tested on a Java 26.3 server: after place, exactly the build's blocks changed; after
 undo, all 329,400 blocks in the area matched the original, chest contents included. Notes from that test:
@@ -35,7 +38,8 @@ PACK_FORMAT = 121            # data pack format of Java 26.3
 CLONE_LIMIT = 32768          # the default commandModificationBlockLimit
 WORLD_TOP = 319
 OBJ = "model2mc_v"
-NS, INTERNAL = "model2mc", "model2mc_internal"
+NS, INTERNAL = "model2mc", "model2mc_internal"   # players see model2mc:<model> and model2mc:undo only
+VAULT = f"{INTERNAL}:vault"
 
 
 def _red(t: str) -> str:
@@ -78,6 +82,8 @@ def _checked(cmd: str) -> list[str]:
 def build(grid: BlockGrid, name: str, data_version: int, distance: int | None = None) -> tuple[dict[str, bytes], dict]:
     """Every file of the pack, {path inside the zip: bytes}, and a summary."""
     N = safe_name(name).replace(".", "_").replace("-", "_")
+    if N == "undo":
+        N = "undo_model"  # model2mc:undo is the undo command
     tiles = structure_tiles(grid, N, data_version)
     if not tiles:
         raise ValueError("no blocks to put in the datapack")
@@ -94,24 +100,23 @@ def build(grid: BlockGrid, name: str, data_version: int, distance: int | None = 
 
     js("pack.mcmeta", {"pack": {"description": f"model2mc: {N} (place and undo)",
                                 "min_format": PACK_FORMAT, "max_format": PACK_FORMAT}})
-    js(f"data/{NS}/dimension/vault.json", {
+    js(f"data/{INTERNAL}/dimension/vault.json", {
         "type": "minecraft:overworld",
         "generator": {"type": "minecraft:flat",
                       "settings": {"biome": "minecraft:the_void", "layers": [], "lakes": False, "features": False}}})
     js("data/minecraft/tags/function/load.json", {"values": [f"{INTERNAL}:load"]})
-    js(f"data/{NS}/tags/function/undo_start.json", {"values": [f"{INTERNAL}:{N}/undo1"]})
-    js(f"data/{NS}/tags/function/undo_finish.json", {"values": [f"{INTERNAL}:{N}/undo2"]})
+    js(f"data/{INTERNAL}/tags/function/undo_start.json", {"values": [f"{INTERNAL}:{N}/undo1"]})
+    js(f"data/{INTERNAL}/tags/function/undo_finish.json", {"values": [f"{INTERNAL}:{N}/undo2"]})
     for t in tiles:
-        files[f"data/{NS}/structure/{t.name}.nbt"] = t.data
+        files[f"data/{INTERNAL}/structure/{t.name}.nbt"] = t.data
 
     # shared by every model2mc pack (identical text, so packs combine)
     f_int = f"data/{INTERNAL}/function"
     put(f"{f_int}/load.mcfunction", [f"scoreboard objectives add {OBJ} dummy"])
     put(f"{f_int}/vault_check.mcfunction", [
         f"scoreboard players set #vault {OBJ} 0",
-        f"execute in {NS}:vault run scoreboard players set #vault {OBJ} 1",
-        f"execute if score #vault {OBJ} matches 0 run tellraw @a " + _red(
-            "Almost ready: Save and Quit to Title, then open this world again (needed once after adding the pack)."),
+        f"execute in {VAULT} run scoreboard players set #vault {OBJ} 1",
+        f"execute if score #vault {OBJ} matches 0 run tellraw @a " + _red("Reopen this world once to finish installing model2mc."),
     ])
     put(f"data/{NS}/function/undo.mcfunction", [
         f"function {INTERNAL}:vault_check",
@@ -119,14 +124,13 @@ def build(grid: BlockGrid, name: str, data_version: int, distance: int | None = 
     ])
     put(f"{f_int}/undo1.mcfunction", [
         f"tag @e[type=marker,tag={NS},tag=!{NS}_pending,tag=!{NS}_undo,sort=nearest,limit=1] add {NS}_undo",
-        f"execute unless entity @e[type=marker,tag={NS}_undo] run tellraw @a "
-        + _red("Nothing to undo nearby (go within sight of the build)."),
+        f"execute unless entity @e[type=marker,tag={NS}_undo] run tellraw @a " + _red("Nothing to undo nearby."),
         f"execute unless entity @e[type=marker,tag={NS}_undo] run return 0",
-        f"function #{NS}:undo_start",
+        f"function #{INTERNAL}:undo_start",
         f"schedule function {INTERNAL}:undo2 20t",
         'tellraw @a "Restoring..."',
     ])
-    put(f"{f_int}/undo2.mcfunction", [f"function #{NS}:undo_finish"])
+    put(f"{f_int}/undo2.mcfunction", [f"function #{INTERNAL}:undo_finish"])
 
     # this model
     blo = [lo[0] - 1, lo[1] - 1, lo[2] - 1]
@@ -136,7 +140,7 @@ def build(grid: BlockGrid, name: str, data_version: int, distance: int | None = 
     me = f"@e[type=marker,tag={tag}"
     sl = list(_slices(blo, bhi))
     d = f"{f_int}/{N}"
-    put(f"data/{NS}/function/place_{N}.mcfunction", [
+    put(f"data/{NS}/function/{N}.mcfunction", [
         f"function {INTERNAL}:vault_check",
         f"execute if score #vault {OBJ} matches 1 run function {INTERNAL}:{N}/place1",
     ])
@@ -144,9 +148,9 @@ def build(grid: BlockGrid, name: str, data_version: int, distance: int | None = 
         f"execute rotated ~ 0 positioned ^ ^ ^{dist} positioned over motion_blocking_no_leaves run "
         f'summon marker ~ ~ ~ {{Tags:["{NS}","{tag}","{NS}_pending"]}}',
         f"execute as {me},tag={NS}_pending] if entity @s[y={WORLD_TOP + 1 - height + 1},dy=1000] run tellraw @a "
-        + _red(f"Too high here: a {height}-block build would pass the height limit. Try lower ground."),
+        + _red(f"Too high here for a {height}-block build. Try lower ground."),
         f"kill {me},tag={NS}_pending,y={WORLD_TOP + 1 - height + 1},dy=1000]",
-        f"execute as {me},tag={NS}_pending] at @s in {NS}:vault run forceload add {fl}",
+        f"execute as {me},tag={NS}_pending] at @s in {VAULT} run forceload add {fl}",
         f"schedule function {INTERNAL}:{N}/place2 20t",
         f'execute if entity {me},tag={NS}_pending] run tellraw @a "Placing {N}..."',
     ])
@@ -155,41 +159,39 @@ def build(grid: BlockGrid, name: str, data_version: int, distance: int | None = 
            f"execute {_loaded(blo, bhi)} run scoreboard players set #fail {OBJ} 0"]
     p3 = chk + [
         f"execute if score #fail {OBJ} matches 1 run tellraw @a "
-        + _red("Couldn't back up the area (part of it isn't loaded). Nothing was placed."),
-        f"execute if score #fail {OBJ} matches 1 in {NS}:vault run forceload remove {fl}",
+        + _red("Can't back up the area here. Nothing placed."),
+        f"execute if score #fail {OBJ} matches 1 in {VAULT} run forceload remove {fl}",
         f"execute if score #fail {OBJ} matches 1 run kill @s",
         f"execute if score #fail {OBJ} matches 1 run return 0",
     ]
-    p3 += [f"clone from minecraft:overworld {_rel(*x[:3])} {_rel(*x[3:])} to {NS}:vault {_rel(*x[:3])}" for x in sl]
+    p3 += [f"clone from minecraft:overworld {_rel(*x[:3])} {_rel(*x[3:])} to {VAULT} {_rel(*x[:3])}" for x in sl]
     for t in tiles:
-        p3 += _checked(f"place template {NS}:{t.name} {_rel(*t.offset)}")
+        p3 += _checked(f"place template {INTERNAL}:{t.name} {_rel(*t.offset)}")
     p3 += [
-        f"execute in {NS}:vault run forceload remove {fl}",
+        f"execute in {VAULT} run forceload remove {fl}",
         f"tag @s remove {NS}_pending",
         f"execute if score #fail {OBJ} matches 1 run tellraw @a "
-        + _red(f"{N} was only partly placed. /function {NS}:undo puts the area back."),
-        f"execute if score #fail {OBJ} matches 0 run tellraw @a "
-        + _green(f"{N} placed ({height} blocks tall). Undo: /function {NS}:undo"),
+        + _red(f"{N} only partly placed. Undo: /function {NS}:undo"),
+        f"execute if score #fail {OBJ} matches 0 run tellraw @a " + _green(f"{N} placed. Undo: /function {NS}:undo"),
     ]
     put(f"{d}/place3.mcfunction", p3)
     put(f"{d}/undo1.mcfunction", [
-        f"execute as @e[type=marker,tag={NS}_undo,tag={tag}] at @s in {NS}:vault run forceload add {fl}"])
+        f"execute as @e[type=marker,tag={NS}_undo,tag={tag}] at @s in {VAULT} run forceload add {fl}"])
     put(f"{d}/undo2.mcfunction", [
         f"execute as @e[type=marker,tag={NS}_undo,tag={tag}] at @s run function {INTERNAL}:{N}/undo3"])
-    u3 = chk + [f"execute if score #fail {OBJ} matches 0 run clone from {NS}:vault {_rel(*x[:3])} {_rel(*x[3:])} "
+    u3 = chk + [f"execute if score #fail {OBJ} matches 0 run clone from {VAULT} {_rel(*x[:3])} {_rel(*x[3:])} "
                 f"to minecraft:overworld {_rel(*x[:3])}" for x in sl]
     u3 += [
-        f"execute in {NS}:vault run forceload remove {fl}",
+        f"execute in {VAULT} run forceload remove {fl}",
         f"tag @s remove {NS}_undo",
-        f"execute if score #fail {OBJ} matches 1 run tellraw @a "
-        + _red(f"Couldn't restore all of the {N} area (is it loaded?). Nothing was lost; try again closer."),
-        f"execute if score #fail {OBJ} matches 0 run tellraw @a " + _green(f"{N} removed, area restored"),
+        f"execute if score #fail {OBJ} matches 1 run tellraw @a " + _red("Couldn't restore it all. Move closer and try again."),
+        f"execute if score #fail {OBJ} matches 0 run tellraw @a " + _green(f"{N} removed."),
         f"execute if score #fail {OBJ} matches 0 run kill @s",
     ]
     put(f"{d}/undo3.mcfunction", u3)
 
     summary = {"name": N, "tiles": len(tiles), "height": height, "distance": dist,
-               "commands": [f"/function {NS}:place_{N}", f"/function {NS}:undo"]}
+               "commands": [f"/function {NS}:{N}", f"/function {NS}:undo"]}
     return files, summary
 
 

@@ -399,25 +399,28 @@ def test_datapack(samples, tmp_path):
     files = _pack(tmp_path / "Ring Model.zip")
     meta = json.loads(files["pack.mcmeta"])["pack"]
     assert meta["min_format"] == meta["max_format"] == 121
-    assert json.loads(files["data/model2mc/dimension/vault.json"])["generator"]["settings"]["layers"] == []
+    assert json.loads(files["data/model2mc_internal/dimension/vault.json"])["generator"]["settings"]["layers"] == []
     assert json.loads(files["data/minecraft/tags/function/load.json"]) == {"values": ["model2mc_internal:load"]}
-    assert json.loads(files["data/model2mc/tags/function/undo_start.json"]) == {"values": ["model2mc_internal:ring_model/undo1"]}
-    assert s["datapack"]["commands"] == ["/function model2mc:place_ring_model", "/function model2mc:undo"]
+    assert json.loads(files["data/model2mc_internal/tags/function/undo_start.json"]) == {"values": ["model2mc_internal:ring_model/undo1"]}
+    assert s["datapack"]["commands"] == ["/function model2mc:ring_model", "/function model2mc:undo"]
+    # players only see the place and undo commands under model2mc:; everything else is internal
+    assert sorted(n for n in files if n.startswith("data/model2mc/")) == [
+        "data/model2mc/function/ring_model.mcfunction", "data/model2mc/function/undo.mcfunction"]
 
     functions = {n for n in files if n.endswith(".mcfunction")}
-    structures = {n for n in files if n.startswith("data/model2mc/structure/")}
+    structures = {n for n in files if n.startswith("data/model2mc_internal/structure/")}
     assert len(structures) == s["datapack"]["tiles"] >= 2
     text = "\n".join(files[n].decode() for n in functions)
     # every structure the functions place is in the pack, and every structure is placed
-    placed = set(re.findall(r"place template model2mc:([a-z0-9_/.]+)", text))
-    assert {f"data/model2mc/structure/{p}.nbt" for p in placed} == structures
+    placed = set(re.findall(r"place template model2mc_internal:([a-z0-9_/.]+)", text))
+    assert {f"data/model2mc_internal/structure/{p}.nbt" for p in placed} == structures
     # every function a function or tag calls exists
     def fn_path(ref):
         ns, path = ref.split(":")
         return f"data/{ns}/function/{path}.mcfunction"
     calls = set(re.findall(r"function (model2mc(?:_internal)?:[a-z0-9_/.]+)", text))
     for tag in ("undo_start", "undo_finish"):
-        calls |= set(json.loads(files[f"data/model2mc/tags/function/{tag}.json"])["values"])
+        calls |= set(json.loads(files[f"data/model2mc_internal/tags/function/{tag}.json"])["values"])
     assert calls and all(fn_path(c) in functions for c in calls)
     # structures are gzipped NBT at the version Java upgrades
     for n in structures:
@@ -431,6 +434,6 @@ def test_two_datapacks_combine(samples, tmp_path):
     a, b = _pack(tmp_path / "a.zip"), _pack(tmp_path / "b.zip")
     shared = set(a) & set(b)
     # the files both packs have must be identical, or the second pack would break the first
-    assert all(a[n] == b[n] for n in shared - {"pack.mcmeta", "data/model2mc/tags/function/undo_start.json",
-                                              "data/model2mc/tags/function/undo_finish.json"})
+    assert all(a[n] == b[n] for n in shared - {"pack.mcmeta", "data/model2mc_internal/tags/function/undo_start.json",
+                                              "data/model2mc_internal/tags/function/undo_finish.json"})
     assert "data/model2mc/function/undo.mcfunction" in shared

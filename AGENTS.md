@@ -57,7 +57,7 @@ parse the `.schem` yourself. The other options are in
 - `.nbt`: copy into `<world>/generated/minecraft/structures/`. Builds over 48 blocks are split into tiles; run the
   commands in `NAME_place.txt`.
 - `.zip` (Java datapack, no mods): the user puts it in `<world>/datapacks/`, reopens the world once, then runs
-  `/function model2mc:place_NAME`; `/function model2mc:undo` puts the area back. `--json` gives the exact commands
+  `/function model2mc:NAME`; `/function model2mc:undo` puts the area back. `--json` gives the exact commands
   under `datapack.commands`.
 
 Don't copy files into a Minecraft folder or a world unless the user asks you to.

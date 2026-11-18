@@ -150,11 +150,11 @@ model2mc dragon.glb --height 80 -o dragon.zip
    Folder).
 2. Save and Quit to Title, then open the world again. Minecraft only loads the pack's storage dimension when a world
    opens, so this is needed once; until then the commands tell you to do it.
-3. In game, run `/function model2mc:place_dragon`. The build appears on the ground ahead of you, about a third of its
+3. In game, run `/function model2mc:dragon`. The build appears on the ground ahead of you, about a third of its
    height plus 15 blocks away.
 4. `/function model2mc:undo` removes the nearest build and puts back exactly what was there before, chests and all.
 
-Before placing, the pack copies the area into an empty dimension (`model2mc:vault`), and undo copies it back. Several
+Before placing, the pack copies the area into an empty dimension (`model2mc_internal:vault`), and undo copies it back. Several
 packs made by model2mc can be installed together, and `undo` works for all of them. The commands need cheats or
 operator rights. Limits: two builds placed on the same spot share one backup, so undo the first before placing the
 second there; a build's footprint can be at most 32,768 blocks (about 180 x 180); and the top has to stay under the
