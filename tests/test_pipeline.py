@@ -422,6 +422,9 @@ def test_datapack(samples, tmp_path):
     for tag in ("undo_start", "undo_finish"):
         calls |= set(json.loads(files[f"data/model2mc_internal/tags/function/{tag}.json"])["values"])
     assert calls and all(fn_path(c) in functions for c in calls)
+    # copies run without block updates, or plants on the backup's bottom layer pop off in the empty vault
+    clones = [l for l in text.splitlines() if " clone from " in f" {l}"]
+    assert clones and all(l.endswith(" strict") for l in clones)
     # structures are gzipped NBT at the version Java upgrades
     for n in structures:
         root = nbtlib.File.parse(__import__("io").BytesIO(gzip.decompress(files[n])))

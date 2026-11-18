@@ -18,11 +18,15 @@ check functions) are identical in each, and every model joins the undo through t
 #model2mc_internal:undo_start and #model2mc_internal:undo_finish.
 
 The commands come from a pack tested on a Java 26.3 server: after place, exactly the build's blocks changed; after
-undo, all 329,400 blocks in the area matched the original, chest contents included. Notes from that test:
+undo, all 329,400 blocks in the area matched the original, chest contents included. Two packs installed together
+were placed and undone in two areas (about 330,000 blocks each) with chests restored. Notes from that test:
 - `execute in <dimension> if loaded` is false for force-loaded chunks with no player in the dimension, but clone
   still works there, so loaded checks only run on the overworld side.
-- A failing `tellraw @s` (no player, e.g. from the console) stops the function, so messages go to @a and schedules
-  come first.
+- clone runs with `strict`, so blocks are copied without block updates; otherwise plants and leaf litter on the
+  backup's bottom layer pop off in the empty vault (203 wrong blocks in one test area, against 28 with strict, all of
+  those ordinary world changes such as grass turning to dirt).
+- Dedicated servers pause after 60 s with no players and scheduled functions don't fire; set
+  pause-when-empty-seconds=-1 when testing headless.
 - clone reports failure when it copies only air onto air, so clone results can't signal errors; place results can.
 """
 from __future__ import annotations
@@ -164,7 +168,7 @@ def build(grid: BlockGrid, name: str, data_version: int, distance: int | None = 
         f"execute if score #fail {OBJ} matches 1 run kill @s",
         f"execute if score #fail {OBJ} matches 1 run return 0",
     ]
-    p3 += [f"clone from minecraft:overworld {_rel(*x[:3])} {_rel(*x[3:])} to {VAULT} {_rel(*x[:3])}" for x in sl]
+    p3 += [f"clone from minecraft:overworld {_rel(*x[:3])} {_rel(*x[3:])} to {VAULT} {_rel(*x[:3])} strict" for x in sl]
     for t in tiles:
         p3 += _checked(f"place template {INTERNAL}:{t.name} {_rel(*t.offset)}")
     p3 += [
@@ -180,7 +184,7 @@ def build(grid: BlockGrid, name: str, data_version: int, distance: int | None = 
     put(f"{d}/undo2.mcfunction", [
         f"execute as @e[type=marker,tag={NS}_undo,tag={tag}] at @s run function {INTERNAL}:{N}/undo3"])
     u3 = chk + [f"execute if score #fail {OBJ} matches 0 run clone from {VAULT} {_rel(*x[:3])} {_rel(*x[3:])} "
-                f"to minecraft:overworld {_rel(*x[:3])}" for x in sl]
+                f"to minecraft:overworld {_rel(*x[:3])} strict" for x in sl]
     u3 += [
         f"execute in {VAULT} run forceload remove {fl}",
         f"tag @s remove {NS}_undo",
