@@ -1,7 +1,8 @@
 # Notes for AI agents
 
 model2mc turns a 3D model (GLB, glTF, OBJ, STL) into Minecraft blocks: a WorldEdit schematic (`.schem`), vanilla
-structure files (`.nbt`) or a voxel dump (`.json`). It runs offline, never prompts, and finishes in seconds.
+structure files (`.nbt`), a Java datapack with place and undo (`.zip`) or a voxel dump (`.json`). It runs offline,
+never prompts, and finishes in seconds.
 
 ## Install
 
@@ -55,6 +56,9 @@ parse the `.schem` yourself. The other options are in
   game.
 - `.nbt`: copy into `<world>/generated/minecraft/structures/`. Builds over 48 blocks are split into tiles; run the
   commands in `NAME_place.txt`.
+- `.zip` (Java datapack, no mods): the user puts it in `<world>/datapacks/`, reopens the world once, then runs
+  `/function model2mc:place_NAME`; `/function model2mc:undo` puts the area back. `--json` gives the exact commands
+  under `datapack.commands`.
 
 Don't copy files into a Minecraft folder or a world unless the user asks you to.
 

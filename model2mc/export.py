@@ -6,6 +6,7 @@ A block grid is `blocks` (X, Y, Z) uint16 indices into `states`, a list of block
 from __future__ import annotations
 
 import base64
+import gzip
 import json
 import re
 import time
@@ -138,22 +139,27 @@ def _split_state(state: str) -> dict:
     return out
 
 
-def write_structures(grid: BlockGrid, path, data_version: int, tile: int = 48, include_air: bool = False) -> list[Path]:
-    """Vanilla structure files. Structure blocks save and load at most 48x48x48, so a bigger build is cut into
-    tiles named NAME_x{i}_y{j}_z{k}.nbt, with NAME_place.txt listing a /place command for each."""
-    path = Path(path)
+@dataclass
+class Tile:
+    name: str                       # structure id path, e.g. "giant_x0_y1_z0" (or the stem for a single tile)
+    offset: tuple[int, int, int]    # where its corner goes, relative to the model's base centre
+    size: tuple[int, int, int]
+    data: bytes                     # gzipped structure NBT
+
+
+def safe_name(stem: str) -> str:
+    """A name Minecraft accepts in a resource location: lower case a-z 0-9 _ . -"""
+    return re.sub(r"[^a-z0-9_.-]", "_", stem.lower()) or "model"
+
+
+def structure_tiles(grid: BlockGrid, stem: str, data_version: int, tile: int = 48,
+                    include_air: bool = False) -> list[Tile]:
+    """Cut the grid into structure files of at most tile^3 (what a structure block can save and load)."""
     X, Y, Z = grid.shape
     nx, ny, nz = (-(-X // tile), -(-Y // tile), -(-Z // tile))
-    stem = re.sub(r"[^a-z0-9_.-]", "_", path.stem.lower())
-    # tiles and commands from an earlier run with the same name would be mixed up with these ones
-    tile_re = re.compile(re.escape(stem) + r"_x\d+_y\d+_z\d+\.nbt")
-    for old in path.parent.glob(f"{stem}_*"):
-        if tile_re.fullmatch(old.name) or old.name == f"{stem}_place.txt":
-            old.unlink()
-    if path.is_file():
-        path.unlink()
-    written, cmds = [], []
+    stem = safe_name(stem)
     palette = [_split_state(s) for s in grid.states]
+    out = []
     for i in range(nx):
         for j in range(ny):
             for k in range(nz):
@@ -173,10 +179,32 @@ def write_structures(grid: BlockGrid, path, data_version: int, tile: int = 48, i
                 }
                 single = nx * ny * nz == 1
                 name = stem if single else f"{stem}_x{i}_y{j}_z{k}"
-                out = path if single else path.with_name(f"{name}.nbt")
-                nbt.write(out, root, "")
-                written.append(out)
-                cmds.append(f"place template minecraft:{name} ~{i * tile - X // 2} ~{j * tile} ~{k * tile - Z // 2}")
+                data = gzip.compress(nbt.dumps(root, ""), compresslevel=6, mtime=0)
+                out.append(Tile(name, (i * tile - X // 2, j * tile, k * tile - Z // 2), (sx, sy, sz), data))
+    return out
+
+
+def write_structures(grid: BlockGrid, path, data_version: int, tile: int = 48, include_air: bool = False) -> list[Path]:
+    """Vanilla structure files. Structure blocks save and load at most 48x48x48, so a bigger build is cut into
+    tiles named NAME_x{i}_y{j}_z{k}.nbt, with NAME_place.txt listing a /place command for each."""
+    path = Path(path)
+    X, Y, Z = grid.shape
+    stem = safe_name(path.stem)
+    # tiles and commands from an earlier run with the same name would be mixed up with these ones
+    tile_re = re.compile(re.escape(stem) + r"_x\d+_y\d+_z\d+\.nbt")
+    for old in path.parent.glob(f"{stem}_*"):
+        if tile_re.fullmatch(old.name) or old.name == f"{stem}_place.txt":
+            old.unlink()
+    if path.is_file():
+        path.unlink()
+    tiles = structure_tiles(grid, stem, data_version, tile, include_air)
+    written, cmds = [], []
+    for t in tiles:
+        out = path if t.name == stem else path.with_name(f"{t.name}.nbt")
+        out.write_bytes(t.data)
+        written.append(out)
+        dx, dy, dz = t.offset
+        cmds.append(f"place template minecraft:{t.name} ~{dx} ~{dy} ~{dz}")
     if len(written) > 1 or max(X, Y, Z) > tile:
         note = path.with_name(f"{stem}_place.txt")
         note.write_text(

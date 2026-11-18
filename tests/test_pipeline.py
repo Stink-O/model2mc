@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from model2mc import DEFAULT_DATA_VERSION, export, nbt, palette  # noqa: E402
+from model2mc import DEFAULT_DATA_VERSION, STRUCTURE_DATA_VERSION, export, nbt, palette  # noqa: E402
 from model2mc.blocklist import BLOCKS  # noqa: E402
 from model2mc.cli import build_parser, convert  # noqa: E402
 
@@ -112,7 +112,7 @@ def test_structure_tiles(samples, tmp_path):
         f = nbtlib.load(t)
         size = [int(v) for v in f["size"]]
         assert all(1 <= v <= 48 for v in size)
-        assert int(f["DataVersion"]) == DEFAULT_DATA_VERSION
+        assert int(f["DataVersion"]) == STRUCTURE_DATA_VERSION  # Java 26.3 upgrades it (a 5023 file places as air)
         for b in f["blocks"]:
             assert all(0 <= int(p) < s for p, s in zip(b["pos"], size))
         total += len(f["blocks"])
@@ -382,3 +382,55 @@ def test_too_tall_hint():
     from model2mc.cli import hints
     a = build_parser().parse_args(["m.glb"])
     assert "build height" in hints(200, 450, 150, 5000, 20, a)[0]
+
+
+# --- the Java datapack --------------------------------------------------------------------------------------------
+
+def _pack(path):
+    import zipfile
+    with zipfile.ZipFile(path) as z:
+        return {n: z.read(n) for n in z.namelist()}
+
+
+def test_datapack(samples, tmp_path):
+    import gzip
+    import re
+    s = run([str(samples / "rainbow.glb"), "--height", "60", "-o", str(tmp_path / "Ring Model.zip")])
+    files = _pack(tmp_path / "Ring Model.zip")
+    meta = json.loads(files["pack.mcmeta"])["pack"]
+    assert meta["min_format"] == meta["max_format"] == 121
+    assert json.loads(files["data/model2mc/dimension/vault.json"])["generator"]["settings"]["layers"] == []
+    assert json.loads(files["data/minecraft/tags/function/load.json"]) == {"values": ["model2mc_internal:load"]}
+    assert json.loads(files["data/model2mc/tags/function/undo_start.json"]) == {"values": ["model2mc_internal:ring_model/undo1"]}
+    assert s["datapack"]["commands"] == ["/function model2mc:place_ring_model", "/function model2mc:undo"]
+
+    functions = {n for n in files if n.endswith(".mcfunction")}
+    structures = {n for n in files if n.startswith("data/model2mc/structure/")}
+    assert len(structures) == s["datapack"]["tiles"] >= 2
+    text = "\n".join(files[n].decode() for n in functions)
+    # every structure the functions place is in the pack, and every structure is placed
+    placed = set(re.findall(r"place template model2mc:([a-z0-9_/.]+)", text))
+    assert {f"data/model2mc/structure/{p}.nbt" for p in placed} == structures
+    # every function a function or tag calls exists
+    def fn_path(ref):
+        ns, path = ref.split(":")
+        return f"data/{ns}/function/{path}.mcfunction"
+    calls = set(re.findall(r"function (model2mc(?:_internal)?:[a-z0-9_/.]+)", text))
+    for tag in ("undo_start", "undo_finish"):
+        calls |= set(json.loads(files[f"data/model2mc/tags/function/{tag}.json"])["values"])
+    assert calls and all(fn_path(c) in functions for c in calls)
+    # structures are gzipped NBT at the version Java upgrades
+    for n in structures:
+        root = nbtlib.File.parse(__import__("io").BytesIO(gzip.decompress(files[n])))
+        assert int(root["DataVersion"]) == STRUCTURE_DATA_VERSION
+
+
+def test_two_datapacks_combine(samples, tmp_path):
+    run([str(samples / "cube.glb"), "--height", "8", "-o", str(tmp_path / "a.zip")])
+    run([str(samples / "sphere.glb"), "--height", "10", "-o", str(tmp_path / "b.zip")])
+    a, b = _pack(tmp_path / "a.zip"), _pack(tmp_path / "b.zip")
+    shared = set(a) & set(b)
+    # the files both packs have must be identical, or the second pack would break the first
+    assert all(a[n] == b[n] for n in shared - {"pack.mcmeta", "data/model2mc/tags/function/undo_start.json",
+                                              "data/model2mc/tags/function/undo_finish.json"})
+    assert "data/model2mc/function/undo.mcfunction" in shared

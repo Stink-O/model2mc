@@ -8,7 +8,8 @@
 # model2mc
 
 **Turn a 3D model into a Minecraft build.** Give it a GLB (or glTF, OBJ or STL) and a height in blocks, and it writes a
-WorldEdit schematic, vanilla structure files, a plain voxel dump and a preview image of the model next to the result.
+WorldEdit schematic, vanilla structure files, a Java datapack that places it in front of you (with undo), a plain voxel
+dump and a preview image of the model next to the result.
 
 <p align="center">
   <a href="https://www.python.org/downloads/"><img alt="Python 3.10+" src="https://img.shields.io/badge/Python-3.10%2B-3776ab?style=flat-square&logo=python&logoColor=white"></a>
@@ -66,9 +67,9 @@ Check the result the way AGENTS.md says and fix anything that looks wrong, then 
 
 ## Features
 
-- **Three outputs from one run.** A Sponge schematic (`.schem`, v3 or v2) for WorldEdit and FAWE, vanilla structure
-  files (`.nbt`, cut into 48-block tiles with the `/place` commands written out), and a `.json` voxel dump for other
-  programs.
+- **Every format from one run.** A Sponge schematic (`.schem`, v3 or v2) for WorldEdit and FAWE, vanilla structure
+  files (`.nbt`, cut into 48-block tiles with the `/place` commands written out), a datapack (`.zip`) that places the
+  build in front of you and can undo it, and a `.json` voxel dump for other programs.
 - **Colours from the texture.** Every point on the surface is coloured from the
   model's texture, vertex colours or material, and matched to one of 168 plain solid blocks in CIELAB with CIEDE2000.
   Optional dithering mixes two blocks where the game has no close match.
@@ -127,6 +128,7 @@ the game. Give `--out` more than once to get several formats; the extension pick
 | --- | --- |
 | `.schem` | Sponge Schematic v3 (`--schem-version 2` for older WorldEdit). For WorldEdit and FAWE. |
 | `.nbt` | Vanilla structure file. Structure blocks stop at 48x48x48, so a bigger build is cut into 48-block tiles with a text file of `/place template` commands. |
+| `.zip` | A datapack for Minecraft Java 26.3: one command places the build in front of you, another undoes it and puts back what was there. No mods. See [Datapack](#datapack-no-mods-with-undo). |
 | `.json` | A voxel dump for other programs (see [The voxel dump](#the-voxel-dump)). |
 
 ### Pasting it in
@@ -137,6 +139,33 @@ model's base centre lands at your feet, facing south.
 
 **No mods:** copy the `.nbt` files into `<world>/generated/minecraft/structures/` and run the commands in
 `NAME_place.txt` (they use `/place template`), or load each tile with a structure block.
+
+### Datapack (no mods, with undo)
+
+```sh
+model2mc dragon.glb --height 80 -o dragon.zip
+```
+
+1. Put `dragon.zip` in your world's `datapacks` folder (in a singleplayer world: Options, Data Packs, Open Pack
+   Folder).
+2. Save and Quit to Title, then open the world again. Minecraft only loads the pack's storage dimension when a world
+   opens, so this is needed once; until then the commands tell you to do it.
+3. In game, run `/function model2mc:place_dragon`. The build appears on the ground ahead of you, about a third of its
+   height plus 15 blocks away.
+4. `/function model2mc:undo` removes the nearest build and puts back exactly what was there before, chests and all.
+
+Before placing, the pack copies the area into an empty dimension (`model2mc:vault`), and undo copies it back. Several
+packs made by model2mc can be installed together, and `undo` works for all of them. The commands need cheats or
+operator rights. Limits: two builds placed on the same spot share one backup, so undo the first before placing the
+second there; a build's footprint can be at most 32,768 blocks (about 180 x 180); and the top has to stay under the
+height limit (Y 319), which the pack checks before it places anything.
+
+Tested on a Java 26.3 server: after undo, every block in the area (329,400 of them) matched the original.
+
+**Data versions.** `.nbt` and `.zip` files are marked as Minecraft 1.21.4 (data version 4189), so Java 26.3 upgrades
+them as it loads them. Marked with 26.3's own version, the classic structure format places as air there.
+`.schem` files use 26.3's version (5023). `--data-version` sets one number for every format. Horizon reads 5023
+structure files; 4189 hasn't been tried there yet, so for Horizon add `--data-version 5023` if a structure loads empty.
 
 ## Options
 
@@ -157,7 +186,7 @@ model's base centre lands at your feet, facing south.
 | `--dither 0.6` | Ordered dithering (0 to 1). Mixes two blocks where no single block is close, which helps soft gradients and colours the game has no block for. |
 | `--textures PATH` | Measure block colours from your own client jar or a resource pack instead of the built-in table. |
 | `--noise-weight N` | How much to avoid blocks with busy textures. Default 0.12; 0 turns it off. |
-| `--data-version N` | The Minecraft data version written to the files. Default 5023 (Java 26.3). |
+| `--data-version N` | The Minecraft data version written to the files. Default 5023 (Java 26.3) for `.schem` and 4189 for `.nbt` and `.zip`, which Java 26.3 upgrades on load (see [Data versions](#datapack-no-mods-with-undo)). |
 | `--schem-version 2` | Write a version 2 schematic for older WorldEdit. Default 3. |
 | `--display-mesh OUT` | Also write a decimated, colour-baked mesh for a shader to ray-trace. `--display-tris N` sets the triangle budget (default 8000). Install the `[display]` extra (`pip install -e '.[display]'`) for a cleaner mesh; without it a simpler method is used. Format in [docs/display-mesh.md](docs/display-mesh.md). |
 | `--damage-seed N`, `--damage SPEC` | Convert the model already broken: remove a few ragged, seeded chunks. Same seed, same cuts, and the rule is written down in [docs/damage.md](docs/damage.md) so other programs can repeat it. |
@@ -205,7 +234,7 @@ model2mc samples/synthetic/sphere.glb --height 40 -o examples/sphere.schem -p ex
 | A colour comes out grey or wrong | The game has no block close to it. Try `--dither 0.6`, or `--include` a block you want. Lighting baked into the texture also ends up in the blocks. |
 | WorldEdit won't load the `.schem` | An older WorldEdit. Write it with `--schem-version 2`. |
 | A structure block refuses the `.nbt` | Builds over 48 blocks are cut into tiles. Copy every tile and run the commands in `NAME_place.txt`. |
-| `don't know how to write ...` | The `--out` extension must be `.schem`, `.nbt` or `.json`. |
+| `don't know how to write ...` | The `--out` extension must be `.schem`, `.nbt`, `.zip` or `.json`. |
 | Something else | [Open an issue](https://github.com/Stink-O/model2mc/issues) with the command, everything it printed and the preview PNG. |
 
 ## Limitations

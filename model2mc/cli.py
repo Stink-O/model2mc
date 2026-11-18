@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 from scipy import ndimage
 
-from . import DEFAULT_DATA_VERSION, __version__, damage, display, export, mesh, palette, preview
+from . import DEFAULT_DATA_VERSION, STRUCTURE_DATA_VERSION, __version__, damage, datapack, display, export, mesh, palette, preview
 from .blocklist import GROUPS
 from .colour import linear_to_srgb
 from .voxelize import INTERIOR, SHELL, voxelize
@@ -56,7 +56,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("input", help="the model file (.glb, .gltf, .obj or .stl)")
     ap.add_argument("-o", "--out", action="append", default=[], metavar="FILE",
                     help="where to write; the extension picks the format: .schem (Sponge schematic), "
-                         ".nbt (vanilla structure, cut into 48-block tiles if bigger) or .json (voxel dump). "
+                         ".nbt (vanilla structure, cut into 48-block tiles if bigger), .zip (Java datapack that "
+                         "places it in front of you, with undo) or .json (voxel dump). "
                          "Give it more than once for several. Default: the model's name with .schem")
     ap.add_argument("-p", "--preview", metavar="FILE.png",
                     help="also write a preview image: the model and the blocks side by side")
@@ -117,8 +118,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="don't print progress (errors, hints and the sponsor line still print)")
     g.add_argument("--no-promo", action="store_true",
                    help="don't print the sponsor line at the end (same as MODEL2MC_NO_PROMO=1)")
-    g.add_argument("--data-version", type=_number(int, 1), default=DEFAULT_DATA_VERSION, metavar="N",
-                   help=f"Minecraft data version written to the files (default {DEFAULT_DATA_VERSION}, Java 26.3)")
+    g.add_argument("--data-version", type=_number(int, 1), default=None, metavar="N",
+                   help=f"Minecraft data version written to the files (default {DEFAULT_DATA_VERSION}, Java 26.3, for "
+                        f".schem; {STRUCTURE_DATA_VERSION} for .nbt and .zip, which Java 26.3 upgrades on load)")
     g.add_argument("--schem-version", type=int, choices=[2, 3], default=3,
                    help="Sponge schematic version (default 3; 2 for older WorldEdit)")
     g.add_argument("--dump-colors", action="store_true", help="add each block's sampled colour to the .json dump")
@@ -153,8 +155,8 @@ def convert(a) -> dict:
         raise ValueError(f"{a.input}: is a folder, not a model file")
     outs = a.out or [str(Path(a.input).with_suffix(".schem").name)]
     for o in outs:
-        if Path(o).suffix.lower() not in (".schem", ".nbt", ".json"):
-            raise ValueError(f"don't know how to write {o} (use .schem, .nbt or .json)")
+        if Path(o).suffix.lower() not in (".schem", ".nbt", ".zip", ".json"):
+            raise ValueError(f"don't know how to write {o} (use .schem, .nbt, .zip or .json)")
         if Path(o).is_dir():
             raise ValueError(f"{o} is a folder; give a file name, like {Path(o) / Path(a.input).stem}.schem")
     if a.preview and Path(a.preview).suffix.lower() not in (".png", ".jpg", ".jpeg", ".webp"):
@@ -227,15 +229,22 @@ def convert(a) -> dict:
     X0, Y0, Z0 = bg.shape
     t = time.perf_counter()
     written = []
+    summary_extra: dict = {}
     for o in outs:
         p = Path(o)
         ext = p.suffix.lower()
         p.parent.mkdir(parents=True, exist_ok=True)
         if ext == ".schem":
-            export.write_schem(bg, p, a.data_version, a.schem_version, name=model.name)
+            export.write_schem(bg, p, a.data_version or DEFAULT_DATA_VERSION, a.schem_version, name=model.name)
             written.append(p)
         elif ext == ".nbt":
-            written += export.write_structures(bg, p, a.data_version)
+            written += export.write_structures(bg, p, a.data_version or STRUCTURE_DATA_VERSION)
+        elif ext == ".zip":
+            pack = datapack.write(bg, p, a.data_version or STRUCTURE_DATA_VERSION)
+            written.append(p)
+            say(f"datapack: put {p.name} in <world>/datapacks/, reopen the world once, then "
+                f"{pack['commands'][0]} (undo: {pack['commands'][1]})")
+            summary_extra["datapack"] = pack
             if max(bg.shape) > 48:
                 say(f"note: {X0} x {Y0} x {Z0} is bigger than a structure block's 48 x 48 x 48, so it's cut into tiles; "
                     f"run the commands in {p.stem}_place.txt to place them")
@@ -256,7 +265,8 @@ def convert(a) -> dict:
         say(f"display mesh: {len(dm.tris):,} triangles, {len(dm.verts):,} vertices, {nbytes:,} bytes "
             f"({nbytes // 4:,} words)")
     summary = {"size": (X, Y, Z), "blocks": bg.count(), "types": len(bg.states) - 1,
-               "written": [str(w) for w in written], "hints": hints(X, Y, Z, bg.count(), len(bg.states) - 1, a)}
+               "written": [str(w) for w in written], "hints": hints(X, Y, Z, bg.count(), len(bg.states) - 1, a),
+               **summary_extra}
     if a.preview:
         t = time.perf_counter()
         # map compacted states back to colours
@@ -317,6 +327,8 @@ def main(argv=None):
         out = {"ok": True, "size": dict(zip(("width", "height", "length"), summary["size"])),
                "blocks": summary["blocks"], "block_types": summary["types"], "written": summary["written"],
                "hints": summary["hints"], "seconds": round(summary["times"]["total"], 2)}
+        if "datapack" in summary:
+            out["datapack"] = summary["datapack"]
         print(json.dumps(out))
     if not (a.no_promo or os.environ.get("MODEL2MC_NO_PROMO") == "1"):
         print(f"Made with Tripo (sponsored): {PROMO_URL}", file=sys.stderr)

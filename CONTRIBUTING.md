@@ -21,6 +21,8 @@ One run goes through these modules in order (`model2mc/cli.py`, `convert()`):
 - **`palette.py`** and **`colour.py`** match each colour to a block in CIELAB with CIEDE2000. The block list is
   `blocklist.py`; the colours are `blocks.json`.
 - **`export.py`** and **`nbt.py`** write `.schem`, `.nbt` and `.json`. `nbt.py` is a small NBT writer and reader.
+- **`datapack.py`** builds the `.zip` datapack (place in front of the player, undo through a void `vault` dimension).
+  Its docstring lists what was learned testing it on a Java 26.3 server.
 - **`preview.py`** draws the model and the blocks side by side.
 - **`damage.py`** and **`display.py`** are the optional `--damage-seed` and `--display-mesh` outputs. Their formats
   are written down in [docs/damage.md](docs/damage.md) and [docs/display-mesh.md](docs/display-mesh.md) so other
