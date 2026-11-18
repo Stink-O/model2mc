@@ -7,7 +7,7 @@
 
 # model2mc
 
-**Turn a 3D model into a Minecraft build.** Give it a GLB (or glTF or OBJ) and a height in blocks, and it writes a
+**Turn a 3D model into a Minecraft build.** Give it a GLB (or glTF, OBJ or STL) and a height in blocks, and it writes a
 WorldEdit schematic, vanilla structure files, a plain voxel dump and a preview image of the model next to the result.
 
 <p align="center">
@@ -144,13 +144,13 @@ model's base centre lands at your feet, facing south.
 | --- | --- |
 | `-o`, `--out FILE` | Where to write. Give it more than once for several formats. Default: the model's name with `.schem`, in the current folder. |
 | `-p`, `--preview FILE` | Also write a preview PNG: the model and the blocks side by side, from two sides. |
-| `--height N` / `--longest N` | Size: height in blocks (default 64), or the longest side instead. |
+| `--height N` / `--longest N` | Size: height in blocks (default 64), or the longest side instead. 1 to 1024. Over 384 tall is taller than the world, and you get a hint. |
 | `--mode shell` / `solid` | `shell` (default) places only the blocks you can see. `solid` fills the inside as well. |
 | `--thickness N` | Shell thickness, default 1. |
 | `--filler BLOCK` | What solid mode fills the inside with. `auto` (default) copies the nearest outside block, so a cut looks right. |
 | `--loose` | Keep every block the surface touches. By default a block counts if its centre is inside the model, or if it's part of something thinner than a block; `--loose` is about half a block fatter all round. |
 | `--no-fill` | Don't work out an inside at all, for open meshes (a single sheet, a terrain tile). |
-| `--up z` | The model's up axis. glTF is Y-up (the default); many OBJ and STL files are Z-up. |
+| `--up z` | The model's up axis. glTF is Y-up (the default); many OBJ and STL files are Z-up. `-y`, `-z` or `-x` if it comes out upside down. |
 | `--yaw`, `--pitch`, `--roll`, `--mirror` | Turn or mirror the model, in degrees. The model's front faces south. |
 | `--palette GROUPS` | Which kinds of block to use: `concrete,wool,terracotta,wood,stone,natural,metal` (default all). |
 | `--include`, `--exclude` | Add or remove single blocks, e.g. `--exclude cobblestone --include gold_block`. |
@@ -165,7 +165,7 @@ model's base centre lands at your feet, facing south.
 | `--dump-colors` | Add each block's sampled colour (before matching) to the `.json` dump. |
 | `--spacing N` | How far apart the surface samples are, in blocks. Default 0.3. Smaller is slower and rarely needed. |
 | `--json` | Print one JSON object to stdout when done: the size, the files written and `hints` about anything that looks wrong. On failure, `{"ok": false, "error": ...}` and exit code 1. For scripts and AI agents (see [AGENTS.md](AGENTS.md)). |
-| `-q`, `--quiet` | Don't print progress. Errors and the sponsor line still print. |
+| `-q`, `--quiet` | Don't print progress. Errors, hints and the sponsor line still print. |
 | `--version` | Print the version. |
 
 `model2mc --help` lists everything.
@@ -360,8 +360,3 @@ not in this repo.
 MIT. See [LICENSE](LICENSE).
 
 Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.
-
-> [!IMPORTANT]
-> **Just want a model in your world?** Install it (`pip install -e .` in a clone), run
-> `model2mc your-model.glb --height 80 --preview check.png`, check the preview, then copy the `.schem` into
-> WorldEdit's `schematics` folder and `//schem load` it. Nothing else to set up.

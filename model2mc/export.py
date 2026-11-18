@@ -145,6 +145,13 @@ def write_structures(grid: BlockGrid, path, data_version: int, tile: int = 48, i
     X, Y, Z = grid.shape
     nx, ny, nz = (-(-X // tile), -(-Y // tile), -(-Z // tile))
     stem = re.sub(r"[^a-z0-9_.-]", "_", path.stem.lower())
+    # tiles and commands from an earlier run with the same name would be mixed up with these ones
+    tile_re = re.compile(re.escape(stem) + r"_x\d+_y\d+_z\d+\.nbt")
+    for old in path.parent.glob(f"{stem}_*"):
+        if tile_re.fullmatch(old.name) or old.name == f"{stem}_place.txt":
+            old.unlink()
+    if path.is_file():
+        path.unlink()
     written, cmds = [], []
     palette = [_split_state(s) for s in grid.states]
     for i in range(nx):

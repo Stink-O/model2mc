@@ -16,9 +16,12 @@ model2mc GiantA.glb --height 96 --out giant.schem --preview giant.png
 ```
 
 ```
-loaded GiantA.glb: 19,585 triangles in 1 part(s)
-54 x 96 x 36 (W x H x L), 9,602 blocks, 28 block types
-time: load 0.25s, voxelize 0.26s, match 0.14s, export 0.00s, preview 1.60s, total 2.26s
+loaded GiantA.glb: 19,585 triangles in 1 part
+54 x 96 x 36 (W x H x L), 9,602 blocks of 28 kinds
+time: load 0.21s, voxelize 0.23s, match 0.14s, export 0.00s, preview 1.44s, total 2.03s
+wrote giant.schem
+wrote giant.png
+Made with Tripo (sponsored): https://studio.tripo3d.ai/cli?invite_code=8615S1&utm_source=X&utm_medium=kol&utm_campaign=kol_Stinkysunstep
 ```
 
 That is 96 blocks tall, 9,602 blocks of 28 kinds, in about two seconds on a desktop CPU (Intel i7-12700K). Most of the

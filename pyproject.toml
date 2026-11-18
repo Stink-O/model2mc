@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "model2mc"
 version = "0.1.0"
-description = "Turn 3D models (GLB, glTF, OBJ) into Minecraft builds: schematics, structure files and a voxel dump."
+description = "Turn 3D models (GLB, glTF, OBJ, STL) into Minecraft builds: schematics, structure files and a voxel dump."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]

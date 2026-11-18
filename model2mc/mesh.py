@@ -141,11 +141,20 @@ def load(path: str | Path, default_colour=(200, 200, 200)) -> Model:
     """Load a GLB/glTF/OBJ/STL file. Raises ValueError for formats we don't read."""
     path = Path(path)
     ext = path.suffix.lower()
+    if path.is_dir():
+        raise ValueError(f"{path}: is a folder, not a model file")
     if ext not in SUPPORTED:
-        raise ValueError(f"{path.name}: unsupported format {ext} (use GLB, glTF, OBJ or STL)")
+        what = f"{ext} files" if ext else "files without an extension"
+        raise ValueError(f"{path.name}: can't read {what} (use GLB, glTF, OBJ or STL)")
     if not path.is_file():
         raise ValueError(f"{path}: no such file")
-    scene = trimesh.load(str(path), force="scene", process=False)
+    if path.stat().st_size == 0:
+        raise ValueError(f"{path.name}: the file is empty")
+    try:
+        scene = trimesh.load(str(path), force="scene", process=False)
+    except Exception:  # trimesh raises all sorts for damaged files; MODEL2MC_DEBUG=1 isn't needed to see why
+        raise ValueError(f"{path.name}: not a readable {ext[1:].upper()} file (it may be damaged, "
+                         f"or not really {ext[1:].upper()})") from None
     parts: list[Part] = []
     for node in scene.graph.nodes_geometry:
         transform, geom_name = scene.graph[node]

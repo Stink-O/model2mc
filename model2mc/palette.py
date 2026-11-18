@@ -50,7 +50,12 @@ class _Source:
 
     def __init__(self, path: Path):
         self.path = path
-        self.zip = zipfile.ZipFile(path) if path.is_file() else None
+        if not path.exists():
+            raise ValueError(f"--textures {path}: no such file or folder")
+        try:
+            self.zip = zipfile.ZipFile(path) if path.is_file() else None
+        except zipfile.BadZipFile:
+            raise ValueError(f"--textures {path}: not a client .jar, a resource pack .zip or a folder") from None
 
     def read(self, rel: str) -> bytes | None:
         if self.zip is not None:
@@ -174,6 +179,9 @@ def measure(path: str | Path, base: list[Block] | None = None) -> tuple[list[Blo
             continue
         top, side, bottom, noise = m
         out.append(Block(block_id, props, group, top, side, bottom, noise))
+    if len(missing) == len(BLOCKS):
+        raise ValueError(f"--textures {path}: no block textures found in it (is it a Minecraft client jar or a "
+                         "resource pack?)")
     return out, missing
 
 
@@ -214,12 +222,24 @@ def select(blocks: list[Block], groups: list[str] | None = None, include: list[s
     groups = set(groups or GROUPS)
     bad = groups - set(GROUPS)
     if bad:
-        raise ValueError(f"unknown palette group(s) {sorted(bad)}; choose from {GROUPS}")
+        raise ValueError(f"--palette: unknown group {', '.join(sorted(bad))} (choose from {', '.join(GROUPS)})")
+    known = {b.id for b in blocks}
+    for flag, names in (("--include", include), ("--exclude", exclude)):
+        for n in sorted(names - known):
+            raise ValueError(f"{flag}: {unknown_block(n, known)}")
     out = [b for b in blocks if (b.group in groups and b.id not in OPT_IN) or b.id in include]
     out = [b for b in out if b.id not in exclude]
     if not out:
         raise ValueError("the palette is empty")
     return out
+
+
+def unknown_block(name: str, known) -> str:
+    """'X is not one of model2mc's blocks', with the closest names, for error messages."""
+    import difflib
+    close = difflib.get_close_matches(name, sorted(known), n=2, cutoff=0.8)
+    hint = f"; did you mean {' or '.join(close)}?" if close else " (the list is in model2mc/blocklist.py)"
+    return f"{name} is not one of model2mc's blocks{hint}"
 
 
 # ---------------------------------------------------------------------------------------------------- matching

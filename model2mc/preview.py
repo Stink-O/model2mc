@@ -229,5 +229,5 @@ def preview(model: Model, blocks: np.ndarray, top_rgb: np.ndarray, side_rgb: np.
     d.text((2 * gap + tw, 8), "blocks", fill=(230, 233, 238), font=f)
     for i, t in enumerate(tiles):
         sheet.paste(t, (gap + (i % 2) * (tw + gap), head + (i // 2) * (th + gap)))
-    d.text((gap, head + 2 * th + 2 * gap + 4), f"{title}   {subtitle}", fill=(200, 204, 212), font=_font(15))
+    d.text((gap, head + 2 * th + 2 * gap + 4), f"{title}  ·  {subtitle}", fill=(200, 204, 212), font=_font(15))
     return sheet

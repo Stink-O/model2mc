@@ -319,3 +319,66 @@ def test_hints():
     assert hints(30, 80, 20, 5000, 20, a) == []
     assert "--up z" in hints(120, 40, 217, 5000, 20, a)[0]  # lying down
     assert "no texture" in hints(30, 80, 20, 5000, 1, a)[0]
+
+
+# --- bad input fails early with a plain message --------------------------------------------------------------------
+
+@pytest.mark.parametrize("args, says", [
+    (["--height", "0"], "out of range"),
+    (["--height", "5000"], "out of range"),
+    (["--dither", "5"], "out of range"),
+    (["--thickness", "0"], "out of range"),
+    (["--spacing", "0"], "out of range"),
+    (["--height", "abc"], "not a whole number"),
+])
+def test_option_ranges(samples, capsys, args, says):
+    from model2mc.cli import main
+    with pytest.raises(SystemExit) as e:
+        main([str(samples / "cube.glb")] + args)
+    assert e.value.code == 2
+    assert says in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("args, says", [
+    (["--include", "gold_blok"], "did you mean gold_block"),
+    (["--exclude", "notablock"], "not one of model2mc's blocks"),
+    (["--mode", "solid", "--filler", "notablock"], "--filler"),
+    (["--palette", "bogus"], "unknown group bogus"),
+    (["--textures", "/no/such/pack.zip"], "no such file or folder"),
+    (["-p", "preview"], "ending in .png"),
+])
+def test_bad_names(samples, tmp_path, args, says):
+    with pytest.raises(ValueError, match=says):
+        run([str(samples / "cube.glb"), "-o", str(tmp_path / "c.schem")] + args)
+
+
+def test_bad_model_files(tmp_path):
+    (tmp_path / "empty.glb").write_bytes(b"")
+    (tmp_path / "text.glb").write_text("hello")
+    (tmp_path / "folder.glb").mkdir()
+    for name, says in [("empty.glb", "empty"), ("text.glb", "not a readable GLB"), ("folder.glb", "folder"),
+                       ("missing.glb", "no such file"), ("model.fbx", "can't read .fbx")]:
+        with pytest.raises(ValueError, match=says):
+            run([str(tmp_path / name), "-o", str(tmp_path / "x.schem")])
+
+
+def test_negative_up_axis(samples, tmp_path):
+    from model2mc.cli import main
+    main([str(samples / "cube.glb"), "--height", "8", "--up", "-z", "-o", str(tmp_path / "c.schem"), "-q",
+          "--no-promo"])
+    assert (tmp_path / "c.schem").exists()
+
+
+def test_old_tiles_are_replaced(samples, tmp_path):
+    out = tmp_path / "s.nbt"
+    run([str(samples / "sphere.glb"), "--height", "60", "-o", str(out)])
+    assert len(list(tmp_path.glob("s_x*_y*_z*.nbt"))) > 1 and (tmp_path / "s_place.txt").exists()
+    (tmp_path / "s_notes.txt").write_text("not ours")
+    run([str(samples / "sphere.glb"), "--height", "20", "-o", str(out)])
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["s.nbt", "s_notes.txt"]
+
+
+def test_too_tall_hint():
+    from model2mc.cli import hints
+    a = build_parser().parse_args(["m.glb"])
+    assert "build height" in hints(200, 450, 150, 5000, 20, a)[0]

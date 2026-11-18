@@ -22,3 +22,6 @@ samples/synthetic/
 *_place.txt
 !examples/**
 out/
+# previews and dumps written in the repo folder while trying it out
+/*.png
+/*.json
