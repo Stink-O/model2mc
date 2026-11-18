@@ -21,7 +21,7 @@ loaded GiantA.glb: 19,585 triangles in 1 part
 time: load 0.21s, voxelize 0.23s, match 0.14s, export 0.00s, preview 1.44s, total 2.03s
 wrote giant.schem
 wrote giant.png
-Made with Tripo (sponsored): https://studio.tripo3d.ai/cli?invite_code=8615S1&utm_source=X&utm_medium=kol&utm_campaign=kol_Stinkysunstep
+Made with Tripo (sponsored): https://tripo.pxf.io/xJdOKy?p.invite_code=8615S1
 ```
 
 That is 96 blocks tall, 9,602 blocks of 28 kinds, in about two seconds on a desktop CPU (Intel i7-12700K). Most of the

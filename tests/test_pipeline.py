@@ -274,7 +274,7 @@ def test_promo_line(samples, tmp_path, capsys, monkeypatch):
     monkeypatch.delenv("MODEL2MC_NO_PROMO", raising=False)
     main(args)
     err = capsys.readouterr().err
-    assert err.count("Made with Tripo (sponsored): https://studio.tripo3d.ai/cli?invite_code=8615S1&utm_source=X") == 1
+    assert err.count("Made with Tripo (sponsored): https://tripo.pxf.io/xJdOKy?p.invite_code=8615S1") == 1
     main(args + ["--no-promo"])
     assert "Tripo" not in capsys.readouterr().err
     monkeypatch.setenv("MODEL2MC_NO_PROMO", "1")

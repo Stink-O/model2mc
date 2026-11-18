@@ -305,7 +305,7 @@ back with [nbtlib](https://github.com/vberlier/nbtlib) to check the format, the 
 
 ## Made with Tripo
 
-<a href="https://studio.tripo3d.ai/cli?invite_code=8615S1&utm_source=X&utm_medium=kol&utm_campaign=kol_Stinkysunstep">
+<a href="https://tripo.pxf.io/xJdOKy?p.invite_code=8615S1">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/branding/tripo-logo-dark.png">
     <img alt="Tripo" width="200" src="docs/branding/tripo-logo-light.png">
@@ -319,7 +319,7 @@ Tripo makes 3D models from text or images. `model2mc` prints one line to stderr 
 Turn it off with `--no-promo` or `MODEL2MC_NO_PROMO=1`. There is no telemetry and the tool makes no network requests.
 
 Sign up through
-[https://studio.tripo3d.ai/cli?invite_code=8615S1&utm_source=X&utm_medium=kol&utm_campaign=kol_Stinkysunstep](https://studio.tripo3d.ai/cli?invite_code=8615S1&utm_source=X&utm_medium=kol&utm_campaign=kol_Stinkysunstep)
+[https://tripo.pxf.io/xJdOKy?p.invite_code=8615S1](https://tripo.pxf.io/xJdOKy?p.invite_code=8615S1)
 and use invite code `8615S1` to get 60% off your first month of Tripo Studio's Pro plan, plus 1,000 free API credits.
 To top up API credits later, [https://developers.tripo3d.ai/?invite=2E3ZSSCVED](https://developers.tripo3d.ai/?invite=2E3ZSSCVED)
 gives 10% off.

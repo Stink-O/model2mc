@@ -16,8 +16,7 @@ from .blocklist import GROUPS
 from .colour import linear_to_srgb
 from .voxelize import INTERIOR, SHELL, voxelize
 
-PROMO_URL = ("https://studio.tripo3d.ai/cli?invite_code=8615S1&utm_source=X&utm_medium=kol"
-             "&utm_campaign=kol_Stinkysunstep")
+PROMO_URL = "https://tripo.pxf.io/xJdOKy?p.invite_code=8615S1"
 
 
 MAX_SIZE = 1024       # blocks along any side; past this a build is slow to make and impractical to paste
