@@ -44,7 +44,9 @@ and an argparse message on stderr. Progress and the sponsor line always go to st
 | Every block the same (a hint says so) | the model has no texture; export a GLB with its texture |
 | A colour comes out wrong | `--dither 0.6`, or `--include BLOCK` |
 
-Run again with the fix until `hints` is empty and the preview looks right. The other options are in
+Run again with the fix until `hints` is empty and the preview looks right. `"ok": true` means the files were
+written and are valid. The test suite checks the formats with an independent NBT reader, so you don't need to
+parse the `.schem` yourself. The other options are in
 `model2mc --help` and the README's Options table.
 
 ## Using the files
