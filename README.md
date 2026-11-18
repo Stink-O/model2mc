@@ -37,18 +37,20 @@ model2mc builds. The schematic and structure files also work in regular Minecraf
 
 ## Made for agents
 
-model2mc is meant to be run by a coding agent (Claude Code, Codex, Cursor and the like) as well as by hand. It's one
-command with no prompts and no network access. Progress goes to stderr, and a failure exits non-zero with a
-`model2mc: ...` message saying what went wrong. The agent can also open the `--preview` PNG to check the result.
+model2mc is meant to be run by an AI coding agent (Claude Code, Codex, Cursor, Gemini CLI and the like) as well as
+by hand. It's one command that never prompts and never goes online. [AGENTS.md](AGENTS.md) tells an agent how to
+install it, run it and check the result. Agents working inside the repo usually pick it up on their own.
+
+With `--json` it prints one JSON object when it's done: the size, the files it wrote and any `hints`, such as "the
+build is lying down: run again with --up z". So an agent that can't look at the preview image can still tell when
+something's wrong and fix it. If it fails, the JSON is `{"ok": false, "error": ...}` and it exits with code 1.
 
 Paste this into your agent, with your own model and height:
 
 ```text
-Clone https://github.com/Stink-O/model2mc and install it in a virtual environment (pip install -e .).
-Convert my-model.glb to a Minecraft build 80 blocks tall with:
-model2mc my-model.glb --height 80 --out my-model.schem --preview check.png
-Open check.png and look at it. If the build is lying down, add --up z. If it faces the wrong way, add --yaw 90.
-Run it again until it looks right, then tell me where the .schem is.
+Clone https://github.com/Stink-O/model2mc and follow its AGENTS.md to install it.
+Convert my-model.glb into a Minecraft build 80 blocks tall, as a WorldEdit schematic.
+Check the result the way AGENTS.md says and fix anything that looks wrong, then tell me where the .schem is.
 ```
 
 **Contents:** [Made for agents](#made-for-agents) ·
@@ -162,6 +164,7 @@ model's base centre lands at your feet, facing south.
 | `--no-promo` | Skip the sponsor line printed at the end (see [Made with Tripo](#made-with-tripo)). `MODEL2MC_NO_PROMO=1` does the same. |
 | `--dump-colors` | Add each block's sampled colour (before matching) to the `.json` dump. |
 | `--spacing N` | How far apart the surface samples are, in blocks. Default 0.3. Smaller is slower and rarely needed. |
+| `--json` | Print one JSON object to stdout when done: the size, the files written and `hints` about anything that looks wrong. On failure, `{"ok": false, "error": ...}` and exit code 1. For scripts and AI agents (see [AGENTS.md](AGENTS.md)). |
 | `-q`, `--quiet` | Don't print progress. Errors and the sponsor line still print. |
 | `--version` | Print the version. |
 

@@ -281,3 +281,41 @@ def test_promo_line(samples, tmp_path, capsys, monkeypatch):
     main(args)
     assert "Tripo" not in capsys.readouterr().err
     assert b"Tripo" not in (tmp_path / "c.schem").read_bytes()
+
+
+# --- for scripts and AI agents -------------------------------------------------------------------------------------
+
+def test_json_output(samples, tmp_path, capsys):
+    from model2mc.cli import main
+    out = tmp_path / "new" / "folder" / "c.schem"  # missing folders are made
+    main([str(samples / "cube.glb"), "--height", "8", "-o", str(out), "-p", str(tmp_path / "p" / "c.png"),
+          "--json", "--no-promo"])
+    cap = capsys.readouterr()
+    r = json.loads(cap.out)  # stdout is exactly one JSON object
+    assert r["ok"] is True and r["size"] == {"width": 8, "height": 8, "length": 8}
+    assert r["blocks"] > 0 and r["block_types"] >= 6 and r["hints"] == []
+    assert r["written"] == [str(out), str(tmp_path / "p" / "c.png")] and out.exists()
+    assert "wrote" in cap.err
+
+
+@pytest.mark.parametrize("args, says", [
+    (["missing.glb"], "no such file"),
+    (["{cube}", "-o", "{tmp}/c.txt"], "don't know how to write"),
+    (["{cube}", "--up", "q"], "--up must be"),
+])
+def test_json_errors(samples, tmp_path, capsys, args, says):
+    from model2mc.cli import main
+    args = [x.format(cube=samples / "cube.glb", tmp=tmp_path) for x in args]
+    with pytest.raises(SystemExit) as e:
+        main(args + ["--json"])
+    assert e.value.code == f"model2mc: {json.loads(capsys.readouterr().out)['error']}"  # exit status 1
+    assert says in str(e.value.code)
+    assert not list(tmp_path.iterdir())  # nothing half-written
+
+
+def test_hints():
+    from model2mc.cli import hints
+    a = build_parser().parse_args(["m.glb"])
+    assert hints(30, 80, 20, 5000, 20, a) == []
+    assert "--up z" in hints(120, 40, 217, 5000, 20, a)[0]  # lying down
+    assert "no texture" in hints(30, 80, 20, 5000, 1, a)[0]

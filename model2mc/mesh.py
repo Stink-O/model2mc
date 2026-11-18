@@ -143,6 +143,8 @@ def load(path: str | Path, default_colour=(200, 200, 200)) -> Model:
     ext = path.suffix.lower()
     if ext not in SUPPORTED:
         raise ValueError(f"{path.name}: unsupported format {ext} (use GLB, glTF, OBJ or STL)")
+    if not path.is_file():
+        raise ValueError(f"{path}: no such file")
     scene = trimesh.load(str(path), force="scene", process=False)
     parts: list[Part] = []
     for node in scene.graph.nodes_geometry:

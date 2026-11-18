@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -75,6 +76,9 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--dump-colors", action="store_true", help="add each cell's sampled colour to the .json dump")
     g.add_argument("--spacing", type=float, default=0.3, help="surface sample spacing in blocks (default 0.3)")
     g.add_argument("-q", "--quiet", action="store_true")
+    g.add_argument("--json", action="store_true",
+                   help="print one JSON object to stdout when done (sizes, files written, hints), or "
+                        "{\"ok\": false, \"error\": ...} on failure. For scripts and AI agents")
     ap.add_argument("--no-promo", action="store_true",
                     help="don't print the sponsor line at the end (same as MODEL2MC_NO_PROMO=1)")
     ap.add_argument("--version", action="version", version=f"model2mc {__version__}")
@@ -88,12 +92,18 @@ def _csv(s: str) -> list[str]:
 def convert(a) -> dict:
     """Run the whole pipeline for parsed arguments; returns a summary dict."""
     say = (lambda *m: None) if a.quiet else (lambda *m: print(*m, file=sys.stderr))
+    # check the cheap things before loading anything
+    outs = a.out or [str(Path(a.input).with_suffix(".schem").name)]
+    for o in outs:
+        if Path(o).suffix.lower() not in (".schem", ".nbt", ".json"):
+            raise ValueError(f"don't know how to write {o} (use .schem, .nbt or .json)")
+    turn = mesh.orientation_matrix(a.up, a.yaw, a.pitch, a.roll, a.mirror)
     t0 = time.perf_counter()
     times = {}
     model = mesh.load(a.input)
     times["load"] = time.perf_counter() - t0
     say(f"loaded {a.input}: {model.triangle_count:,} triangles in {len(model.parts)} part(s)")
-    model = model.transformed(mesh.orientation_matrix(a.up, a.yaw, a.pitch, a.roll, a.mirror))
+    model = model.transformed(turn)
 
     cut = None
     if a.damage is not None or a.damage_seed is not None:
@@ -151,12 +161,12 @@ def convert(a) -> dict:
     side_rgb = np.array([c or (0, 0, 0) for c in rgb], np.uint8)
     bg = full.compact()
 
-    outs = a.out or [str(Path(a.input).with_suffix(".schem").name)]
     t = time.perf_counter()
     written = []
     for o in outs:
         p = Path(o)
         ext = p.suffix.lower()
+        p.parent.mkdir(parents=True, exist_ok=True)
         if ext == ".schem":
             export.write_schem(bg, p, a.data_version, a.schem_version, name=model.name)
             written.append(p)
@@ -168,21 +178,20 @@ def convert(a) -> dict:
             export.write_voxels(bg, p, {"source": Path(a.input).name, "mode": a.mode,
                                         "blocks_per_unit": vox.scale})
             written.append(p)
-        else:
-            raise SystemExit(f"model2mc: don't know how to write {o} (use .schem, .nbt or .json)")
     times["export"] = time.perf_counter() - t
 
     X, Y, Z = bg.shape
     if a.display_mesh:
         t = time.perf_counter()
         dm = display.build(vox.model, vox.shape, a.display_tris)
+        Path(a.display_mesh).parent.mkdir(parents=True, exist_ok=True)
         nbytes = display.write(dm, a.display_mesh)
         times["display"] = time.perf_counter() - t
         written.append(Path(a.display_mesh))
         say(f"display mesh: {len(dm.tris):,} triangles, {len(dm.verts):,} vertices, {nbytes:,} bytes "
             f"({nbytes // 4:,} words)")
     summary = {"size": (X, Y, Z), "blocks": bg.count(), "types": len(bg.states) - 1,
-               "written": [str(w) for w in written]}
+               "written": [str(w) for w in written], "hints": hints(X, Y, Z, bg.count(), len(bg.states) - 1, a)}
     if a.preview:
         t = time.perf_counter()
         # map compacted states back to colours
@@ -190,6 +199,7 @@ def convert(a) -> dict:
         ids = np.array([lookup[s] for s in bg.states])
         sheet = preview.preview(vox.model, bg.blocks, top_rgb[ids], side_rgb[ids], model.name,
                                 f"{X}x{Y}x{Z}  {bg.count():,} blocks  {len(bg.states) - 1} block types  {a.mode}")
+        Path(a.preview).parent.mkdir(parents=True, exist_ok=True)
         sheet.save(a.preview)
         times["preview"] = time.perf_counter() - t
         summary["written"].append(a.preview)
@@ -199,15 +209,42 @@ def convert(a) -> dict:
     say("time: " + ", ".join(f"{k} {v:.2f}s" for k, v in times.items()))
     for w in summary["written"]:
         say(f"wrote {w}")
+    for h in summary["hints"]:
+        say(f"hint: {h}")
     return summary
+
+
+def hints(X: int, Y: int, Z: int, count: int, types: int, a) -> list[str]:
+    """Things worth checking in the preview, for people and for agents that can't look at it."""
+    out = []
+    if Y * 2 < max(X, Z) and a.up.lstrip("+-") == "y" and not (a.pitch or a.roll):
+        out.append(f"the build is {X} wide, {Y} tall and {Z} long, much flatter than it is wide. If the model "
+                   "should stand up, it is probably lying down: run again with --up z (or --up x)")
+    if types == 1 and count > 0:
+        out.append("every block is the same: the model may have no texture or colours (STL files never do)")
+    if count == 0:
+        out.append("no blocks were made: the model may be too small or open; try a bigger --height or --no-fill")
+    return out
 
 
 def main(argv=None):
     a = build_parser().parse_args(argv)
     try:
-        convert(a)
-    except (ValueError, FileNotFoundError) as e:
-        raise SystemExit(f"model2mc: {e}")
+        summary = convert(a)
+    except Exception as e:  # one clean line (or JSON) instead of a traceback; MODEL2MC_DEBUG=1 shows it
+        if os.environ.get("MODEL2MC_DEBUG") == "1":
+            raise
+        msg = str(e) if isinstance(e, (ValueError, OSError)) else f"{type(e).__name__}: {e}"
+        if isinstance(e, OSError) and getattr(e, "filename", None) and str(e.filename) not in msg:
+            msg = f"{e.filename}: {msg}"
+        if a.json:
+            print(json.dumps({"ok": False, "error": msg}))
+        raise SystemExit(f"model2mc: {msg}")
+    if a.json:
+        out = {"ok": True, "size": dict(zip(("width", "height", "length"), summary["size"])),
+               "blocks": summary["blocks"], "block_types": summary["types"], "written": summary["written"],
+               "hints": summary["hints"], "seconds": round(summary["times"]["total"], 2)}
+        print(json.dumps(out))
     if not (a.no_promo or os.environ.get("MODEL2MC_NO_PROMO") == "1"):
         print(f"Made with Tripo (sponsored): {PROMO_URL}", file=sys.stderr)
 
